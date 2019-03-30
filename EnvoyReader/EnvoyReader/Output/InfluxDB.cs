@@ -9,34 +9,32 @@ using System.Threading.Tasks;
 
 namespace EnvoyReader.Output
 {
-    class InfluxDB : IOutput
+    class InfluxDB
     {
         private readonly Uri url;
         private readonly string database;
         private readonly string username;
         private readonly string password;
-        private readonly ILogger logger;
 
-        public InfluxDB(IAppSettings appSettings, ILogger logger)
+        public InfluxDB(IAppSettings appSettings)
         {
             url = new Uri(appSettings.InfluxUrl);
             database = appSettings.InfluxDb;
             username = appSettings.InfluxDbUsername;
             password = appSettings.InfluxDbPassword;
-            this.logger = logger;
 
-            logger.WriteLine($"Use InfluxDB: {database} @ {url}");
+            Console.WriteLine($"Use InfluxDB: {database} @ {url}");
         }
 
-        public async Task<WriteResult> WriteAsync(SystemProduction systemProduction, List<Inverter> inverters)
+        public async Task WriteAsync(Production systemProduction, Production production, Production consumption, List<Inverter> inverters)
         {
             var payload = new LineProtocolPayload();
 
-            var systemPayloadAdded = AddSystemProductionToPayload(systemProduction, payload);
-            var invertersPayloadAdded = AddInvertersToPayload(inverters, payload);
+            AddProductionToPayload("inverters", systemProduction, payload);
+            AddProductionToPayload("production", production, payload);
+            AddProductionToPayload("consumption", consumption, payload);
 
-            if (!systemPayloadAdded && !invertersPayloadAdded)
-                return WriteResult.NoNeedToWrite;
+            AddInvertersToPayload(inverters, payload);
 
             var client = new LineProtocolClient(url, database, username, password);
 
@@ -44,11 +42,9 @@ namespace EnvoyReader.Output
 
             if (!writeResult.Success)
                 throw new Exception(writeResult.ErrorMessage);
-
-            return WriteResult.Success;
         }
 
-        private bool AddSystemProductionToPayload(SystemProduction systemProduction, LineProtocolPayload payload)
+        private bool AddProductionToPayload(string measurement, Production systemProduction, LineProtocolPayload payload)
         {
             if (systemProduction.ReadingTime <= 0)
                 return false;
@@ -56,12 +52,14 @@ namespace EnvoyReader.Output
             var readingTime = DateTimeOffset.FromUnixTimeSeconds(systemProduction.ReadingTime);
 
             var systemPoint = new LineProtocolPoint(
-                "inverters", //Measurement
+                measurement, //Measurement
                 new Dictionary<string, object> //Fields
                 {
                     { $"activecount", systemProduction.ActiveCount },
-                    { $"whlifetime", systemProduction.WhLifeTime },
                     { $"WNow", systemProduction.WNow },
+                    { $"WhToday", systemProduction.WhToday },
+                    { $"WhLifetime", systemProduction.WhLifeTime },
+                    { $"WhLastSevenDays", systemProduction.WhLastSevenDays }
                 },
                 new Dictionary<string, string> //Tags
                 {

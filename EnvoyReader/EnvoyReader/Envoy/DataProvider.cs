@@ -39,15 +39,15 @@ namespace EnvoyReader.Envoy
             }
         }
 
-        public async Task<List<SystemProduction>> GetSystemProduction()
+        public async Task<SystemProduction> GetSystemProduction()
         {
             using (var httpClient = CreateHttpClient())
             {
                 var jsonData = await httpClient.GetStringAsync($"{baseUrl}/production.json");
 
-                var list = JsonConvert.DeserializeObject<SystemProductionList>(jsonData);
+                var data = JsonConvert.DeserializeObject<SystemProduction>(jsonData);
 
-                return list?.Production;
+                return data;
             }
         }
     }
